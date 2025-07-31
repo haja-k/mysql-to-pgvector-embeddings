@@ -2,6 +2,10 @@
 
 A FastAPI-based service that transforms your MySQL database into a powerful vector search engine for AI applications using pgvector and embeddings.
 
+## ‼️Proposed Improvements For This Repository
+- Refine chunking method
+- Standardize threshold value
+
 ## 📋 Table of Contents
 - [🎯 Overview](#-overview)
 - [🛠️ Installation](#️-installation)
