@@ -197,6 +197,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
       "answer": "The government has implemented several policies...",
       "link": "https://example.com/policies",
       "date": "2024-01-10",
+      "genie_uniqueid": "GENIE12345",
       "similarity_score": 0.85
     }
   ],
@@ -223,6 +224,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
       "question": "How does the healthcare system work?",
       "link": "https://example.com/healthcare",
       "date": "2024-01-10",
+      "genie_uniqueid": "GENIE67890",
       "similarity_score": 0.85
     }
   ],
