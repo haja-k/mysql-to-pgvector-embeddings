@@ -1,4 +1,4 @@
-## mysql-to-vector (PVRA API)
+## mysql-to-pgvector-embeddings (PVRA API)
 
 A compact FastAPI service that syncs rows from a MySQL table into a PostgreSQL table with pgvector, generates embeddings via an external embedding service, and exposes vector search endpoints. This README replaces the previous merged/duplicated content and adds guidance for configuring external embedding providers.
 
@@ -321,13 +321,13 @@ User Input → API Node (search-simple) → LLM Node → Response
 **Container Issues:**
 ```bash
 # Check container logs
-docker-compose logs pvra-api
+docker-compose logs mysql-to-pgvector-embeddings
 
 # Check container status
 docker-compose ps
 
 # Restart specific service
-docker-compose restart pvra-api
+docker-compose restart mysql-to-pgvector-embeddings
 
 # Rebuild and restart
 docker-compose up --build
@@ -336,10 +336,10 @@ docker-compose up --build
 **Network Issues:**
 ```bash
 # Check if services can communicate
-docker-compose exec pvra-api ping postgres
+docker-compose exec mysql-to-pgvector-embeddings ping postgres
 
 # Verify port mapping
-docker-compose port pvra-api 5000
+docker-compose port mysql-to-pgvector-embeddings 5000
 ```
 
 ### Performance Optimization
@@ -412,11 +412,11 @@ docker-compose up
 ```bash
 # Production with external databases
 docker run -d \
-  --name pvra-api \
+  --name mysql-to-pgvector-embeddings \
   -p 5000:5000 \
   --env-file .env.production \
   --restart unless-stopped \
-  pvra-api
+  mysql-to-pgvector-embeddings
 
 # Or with docker-compose
 docker-compose -f docker-compose.prod.yml up -d
