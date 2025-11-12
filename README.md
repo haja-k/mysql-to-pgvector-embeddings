@@ -1,6 +1,6 @@
 ## mysql-to-pgvector-embeddings (PVRA API)
 
-A compact FastAPI service that syncs rows from a MySQL table into a PostgreSQL table with pgvector, generates embeddings via an external embedding service, and exposes vector search endpoints. This README replaces the previous merged/duplicated content and adds guidance for configuring external embedding providers.
+A compact FastAPI service that syncs rows from a MySQL table into a PostgreSQL table with pgvector, generates embeddings via an external embedding service, and exposes vector search endpoints.
 
 Table of contents
 - Highlights
@@ -35,7 +35,7 @@ python -m pip install -r requirements.txt
 3. Run the app (development):
 
 ```bash
-uvicorn app:app --reload --host 0.0.0.0 --port 5000
+uvicorn app:app --reload --host 0.0.0.0 --port 5050
 ```
 
 Quick start (Docker)
@@ -47,34 +47,35 @@ docker-compose up --build -d
 ```
 
 Configuration / .env
-Create a `.env` (or copy `.env.example`) and set the following:
+Create a `.env` file (or copy `.env.example`) and set the following:
 
 ```env
-# MySQL
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=your_mysql_user
-DB_PASSWORD=your_mysql_password
-DB_NAME=db_ses
+# Database Configuration
+DB_HOST=
+DB_PORT=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
 
-# PostgreSQL
-PG_HOST=localhost
-PG_PORT=5432
-PG_USER=your_pg_user
-PG_PASSWORD=your_pg_password
-PGVECTOR_DB_NAME=your_pgvector_db
-PG_DB_NAME=your_pg_db
+#PostgreSQL Configuration
+PG_HOST=
+PG_PORT=
+PG_USER=
+PG_PASSWORD=
+PG_DB_NAME=
+PGVECTOR_DB_NAME= 
 
-# Embedding service (HTTP API)
-EMBEDDING_MODEL_HOST=https://your-embed-host
-EMBEDDING_API_KEY=your_api_key
-EMBEDDING_MODEL_NAME=your_model_name
+# Embedding Model Configuration
+EMBEDDING_MODEL_HOST=
+EMBEDDING_API_KEY=
+EMBEDDING_MODEL_NAME=
 
-# Optional: change expected vector dimension if you adapt the code
-# (app.py pads to 4096 by default)
-EMBEDDING_EXPECTED_DIM=4096
+# App Configuration
+APP_DEBUG=
+APP_SECRET_KEY=
 
-APP_DEBUG=false
+# Similarity threshold for search (default 0.7)
+SIMILARITY_THRESHOLD=
 ```
 
 Embedding provider guide
@@ -134,13 +135,13 @@ API examples
 - Health check:
 
 ```bash
-curl http://localhost:5000/healthcheck
+curl http://localhost:5050/healthcheck
 ```
 
 - Simple search:
 
 ```bash
-curl -X POST http://localhost:5000/search-simple \
+curl -X POST http://localhost:5050/search-simple \
   -H 'Content-Type: application/json' \
   -d '{"query":"example query","limit":5,"similarity_threshold":0.7}'
 ```
@@ -148,14 +149,14 @@ curl -X POST http://localhost:5000/search-simple \
 - Sync embeddings:
 
 ```bash
-curl -X POST http://localhost:5000/documents/sync-embeddings
+curl -X POST http://localhost:5050/documents/sync-embeddings
 ```
 
 Next steps & extras
 - Add batching for embedding calls to improve throughput and reduce latency/cost.
 - Add authentication and rate limiting for production.
 - Add unit/integration tests and simple metrics (last synced id, embedding failures).
-- Optional: I can add `.env.example`, a CONTRIBUTING section, or a small metrics endpoint.
+- Optional: I can add a CONTRIBUTING section, or a small metrics endpoint.
 
 ---
 
@@ -183,7 +184,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
 {
   "query": "government policies",
   "limit": 5,
-  "similarity_threshold": 0.7
+  "similarity_threshold": 0.7  // optional, defaults to env var SIMILARITY_THRESHOLD or 0.7
 }
 ```
 
@@ -196,6 +197,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
       "answer": "The government has implemented several policies...",
       "link": "https://example.com/policies",
       "date": "2024-01-10",
+      "genie_uniqueid": "GENIE12345",
       "similarity_score": 0.85
     }
   ],
@@ -209,7 +211,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
 {
   "query": "healthcare system",
   "limit": 3,
-  "similarity_threshold": 0.8
+  "similarity_threshold": 0.8  // optional, defaults to env var SIMILARITY_THRESHOLD or 0.7
 }
 ```
 
@@ -222,6 +224,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
       "question": "How does the healthcare system work?",
       "link": "https://example.com/healthcare",
       "date": "2024-01-10",
+      "genie_uniqueid": "GENIE67890",
       "similarity_score": 0.85
     }
   ],
@@ -235,30 +238,30 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
 
 **Health Check:**
 ```bash
-curl -X GET http://localhost:5000/healthcheck
+curl -X GET http://localhost:5050/healthcheck
 ```
 
 **Search Documents:**
 ```bash
-curl -X POST http://localhost:5000/search-simple \
+curl -X POST http://localhost:5050/search-simple \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is the capital of Malaysia?",
     "limit": 5,
-    "similarity_threshold": 0.7
+    "similarity_threshold": 0.7  // optional, defaults to env var SIMILARITY_THRESHOLD or 0.7
   }'
 ```
 
 **Sync Embeddings:**
 ```bash
-curl -X POST http://localhost:5000/documents/sync-embeddings \
+curl -X POST http://localhost:5050/documents/sync-embeddings \
   -H "Content-Type: application/json"
 ```
 
 ### Testing with Postman
 
 1. **Create new POST request**
-2. **Set URL:** `http://localhost:5000/search-simple`
+2. **Set URL:** `http://localhost:5050/search-simple`
 3. **Add header:** `Content-Type: application/json`
 4. **Body (raw JSON):**
 ```json
@@ -274,7 +277,7 @@ curl -X POST http://localhost:5000/documents/sync-embeddings \
 ### Workflow Configuration
 
 **Step 1: Add API Node**
-- **URL:** `http://your-server:5000/search-simple`
+- **URL:** `http://your-server:5050/search-simple`
 - **Method:** POST
 - **Headers:** `Content-Type: application/json`
 - **Body:**
@@ -339,7 +342,7 @@ docker-compose up --build
 docker-compose exec mysql-to-pgvector-embeddings ping postgres
 
 # Verify port mapping
-docker-compose port mysql-to-pgvector-embeddings 5000
+docker-compose port mysql-to-pgvector-embeddings 5050
 ```
 
 ### Performance Optimization
@@ -394,8 +397,8 @@ docker-compose port mysql-to-pgvector-embeddings 5000
 ### Current Status
 - ✅ Core functionality complete
 - ✅ Docker deployment ready
-- 🔄 Dify integration in progress
-- 📊 Performance optimization ongoing
+- ✅ Dify integration ready (via `/search-simple` endpoint)
+- � Performance optimization ongoing
 
 ## 🚀 Deployment Options
 
@@ -413,7 +416,7 @@ docker-compose up
 # Production with external databases
 docker run -d \
   --name mysql-to-pgvector-embeddings \
-  -p 5000:5000 \
+  -p 5050:5050 \
   --env-file .env.production \
   --restart unless-stopped \
   mysql-to-pgvector-embeddings

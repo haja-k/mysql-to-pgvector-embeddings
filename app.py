@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Load configurable values
+DEFAULT_SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.7"))
+
 # Application Lifespan Management
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -65,13 +68,14 @@ class DocumentResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     limit: Optional[int] = 5
-    similarity_threshold: Optional[float] = 0.7
+    similarity_threshold: Optional[float] = None
 
 class SearchResult(BaseModel):
     question: str
     answer: str
     link: str
     date: str
+    genie_uniqueid: str
     similarity_score: float
 
 class SearchResponse(BaseModel):
@@ -113,19 +117,19 @@ def get_embeddings(text: str, expected_dim: int = 4096) -> List[float]:
 
 # Helper function to update embeddings in pgvector database
 def update_embeddings_in_pgv(pgv_conn, question_id: int, question: str, answer: str):
-    question_embedding = get_embeddings(question)
-    answer_embedding = get_embeddings(answer) if answer else get_embeddings("")
+    full_text = f"{question} {answer}".strip()
+    full_embedding = get_embeddings(full_text)
     
-    logger.debug(f"Updating embeddings - question_id: {question_id}, question_embedding length: {len(question_embedding)}, answer_embedding length: {len(answer_embedding)}")
+    logger.debug(f"Updating embeddings - question_id: {question_id}, full_embedding length: {len(full_embedding)}")
     
     with pgv_conn.cursor() as cursor:
         cursor.execute(
             """
             UPDATE genie_documents
-            SET question_embedding = %s::vector, answer_embedding = %s::vector
+            SET full_embedding = %s::vector
             WHERE id = %s
             """,
-            (question_embedding, answer_embedding, question_id)
+            (full_embedding, question_id)
         )
     pgv_conn.commit()
 
@@ -172,6 +176,7 @@ async def search_knowledge_base(request: SearchRequest):
     This endpoint is designed to be used with Dify workflow API nodes.
     """
     try:
+        threshold = request.similarity_threshold if request.similarity_threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
         # Get embedding for the query
         query_embedding = get_embeddings(request.query)
         
@@ -187,14 +192,14 @@ async def search_knowledge_base(request: SearchRequest):
                     answer, 
                     link, 
                     date,
-                    1 - (question_embedding <=> %s::vector) as similarity_score
+                    1 - (full_embedding <=> %s::vector) as similarity_score
                 FROM genie_documents
-                WHERE question_embedding IS NOT NULL
-                    AND 1 - (question_embedding <=> %s::vector) > %s
+                WHERE full_embedding IS NOT NULL
+                    AND 1 - (full_embedding <=> %s::vector) > %s
                 ORDER BY similarity_score DESC
                 LIMIT %s
                 """,
-                (query_embedding, query_embedding, request.similarity_threshold, request.limit)
+                (query_embedding, query_embedding, threshold, request.limit)
             )
             
             rows = cursor.fetchall()
@@ -206,7 +211,8 @@ async def search_knowledge_base(request: SearchRequest):
                     answer=row[1] or "",
                     link=row[2] or "",
                     date=str(row[3]) if row[3] else "",
-                    similarity_score=float(row[4])
+                    genie_uniqueid=row[4] or "",
+                    similarity_score=float(row[5])
                 ))
             
             return SearchResponse(
@@ -240,6 +246,7 @@ async def search_knowledge_base_simple(request: SearchRequest):
     Returns concatenated results as a single text block.
     """
     try:
+        threshold = request.similarity_threshold if request.similarity_threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
         # Get embedding for the query
         query_embedding = get_embeddings(request.query)
         
@@ -254,14 +261,14 @@ async def search_knowledge_base_simple(request: SearchRequest):
                     answer, 
                     link, 
                     date,
-                    1 - (question_embedding <=> %s::vector) as similarity_score
+                    1 - (full_embedding <=> %s::vector) as similarity_score
                 FROM genie_documents
-                WHERE question_embedding IS NOT NULL
-                    AND 1 - (question_embedding <=> %s::vector) > %s
+                WHERE full_embedding IS NOT NULL
+                    AND 1 - (full_embedding <=> %s::vector) > %s
                 ORDER BY similarity_score DESC
                 LIMIT %s
                 """,
-                (query_embedding, query_embedding, request.similarity_threshold, request.limit)
+                (query_embedding, query_embedding, threshold, request.limit)
             )
             
             rows = cursor.fetchall()
@@ -282,7 +289,8 @@ async def search_knowledge_base_simple(request: SearchRequest):
                 answer = row[1] or ""
                 link = row[2] or ""
                 date = str(row[3]) if row[3] else ""
-                similarity_score = float(row[4])
+                genie_uniqueid = row[4] or ""
+                similarity_score = float(row[5])
                 
                 context_parts.append(f"Result {i}:")
                 context_parts.append(f"Question: {question}")
@@ -298,6 +306,7 @@ async def search_knowledge_base_simple(request: SearchRequest):
                     "question": question,
                     "link": link,
                     "date": date,
+                    "genie_uniqueid": genie_uniqueid,
                     "similarity_score": similarity_score
                 })
             
@@ -347,7 +356,7 @@ async def sync_embeddings():
             async with mysql_conn.cursor(aiomysql.DictCursor) as mysql_cursor:
                 # Fetch rows from MySQL based on the last migrated ID from PostgreSQL
                 await mysql_cursor.execute("""
-                    SELECT id, genie_question, genie_answer, genie_questiondate, genie_sourcelink
+                    SELECT id, genie_question, genie_answer, genie_questiondate, genie_sourcelink, genie_uniqueid
                     FROM tbl_genie_genie
                     WHERE id > %s
                 """, (last_migrated_id,))
@@ -386,12 +395,12 @@ async def sync_embeddings():
                     try:
                         pgv_cursor.execute(
                             """
-                            INSERT INTO genie_documents (question, answer, link, date)
-                            VALUES (%s, %s, %s, %s)
+                            INSERT INTO genie_documents (question, answer, link, date, genie_uniqueid)
+                            VALUES (%s, %s, %s, %s, %s)
                             ON CONFLICT (question) DO UPDATE SET date = EXCLUDED.date
                             RETURNING id
                             """,
-                            (question, answer, row.get('genie_sourcelink'), row['genie_questiondate'])
+                            (question, answer, row.get('genie_sourcelink'), row['genie_questiondate'], row.get('genie_uniqueid'))
                         )
                         question_id = pgv_cursor.fetchone()[0]
                     except psycopg2.Error as e:
@@ -459,4 +468,4 @@ async def healthcheck():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=5050)

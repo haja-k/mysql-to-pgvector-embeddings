@@ -6,13 +6,12 @@ CREATE TABLE genie_documents (
     answer TEXT,
     link TEXT,
     date TIMESTAMP,
-    question_embedding VECTOR(4096),
-    answer_embedding VECTOR(4096)
+    genie_uniqueid TEXT,
+    full_embedding VECTOR(4096)
 );
 
 -- Create indexes for vector search
-CREATE INDEX ON genie_documents USING ivfflat (question_embedding vector_cosine_ops);
-CREATE INDEX ON genie_documents USING ivfflat (answer_embedding vector_cosine_ops);
+CREATE INDEX ON genie_documents USING ivfflat (full_embedding vector_cosine_ops);
 ALTER TABLE genie_documents ADD CONSTRAINT unique_question UNIQUE (question);
 
 -- Grant permissions to user
