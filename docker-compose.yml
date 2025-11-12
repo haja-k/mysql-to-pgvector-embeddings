@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: pvra-api
     ports:
-      - "5000:5000"
+      - "5050:5050"
     environment:
       # Database Configuration
       - DB_HOST=${DB_HOST}
@@ -39,7 +39,7 @@ services:
       - pvra-network
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/healthcheck"]
+      test: ["CMD", "curl", "-f", "http://localhost:5050/healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3

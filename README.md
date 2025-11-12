@@ -35,7 +35,7 @@ python -m pip install -r requirements.txt
 3. Run the app (development):
 
 ```bash
-uvicorn app:app --reload --host 0.0.0.0 --port 5000
+uvicorn app:app --reload --host 0.0.0.0 --port 5050
 ```
 
 Quick start (Docker)
@@ -132,13 +132,13 @@ API examples
 - Health check:
 
 ```bash
-curl http://localhost:5000/healthcheck
+curl http://localhost:5050/healthcheck
 ```
 
 - Simple search:
 
 ```bash
-curl -X POST http://localhost:5000/search-simple \
+curl -X POST http://localhost:5050/search-simple \
   -H 'Content-Type: application/json' \
   -d '{"query":"example query","limit":5,"similarity_threshold":0.7}'
 ```
@@ -146,7 +146,7 @@ curl -X POST http://localhost:5000/search-simple \
 - Sync embeddings:
 
 ```bash
-curl -X POST http://localhost:5000/documents/sync-embeddings
+curl -X POST http://localhost:5050/documents/sync-embeddings
 ```
 
 Next steps & extras
@@ -233,12 +233,12 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
 
 **Health Check:**
 ```bash
-curl -X GET http://localhost:5000/healthcheck
+curl -X GET http://localhost:5050/healthcheck
 ```
 
 **Search Documents:**
 ```bash
-curl -X POST http://localhost:5000/search-simple \
+curl -X POST http://localhost:5050/search-simple \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is the capital of Malaysia?",
@@ -249,14 +249,14 @@ curl -X POST http://localhost:5000/search-simple \
 
 **Sync Embeddings:**
 ```bash
-curl -X POST http://localhost:5000/documents/sync-embeddings \
+curl -X POST http://localhost:5050/documents/sync-embeddings \
   -H "Content-Type: application/json"
 ```
 
 ### Testing with Postman
 
 1. **Create new POST request**
-2. **Set URL:** `http://localhost:5000/search-simple`
+2. **Set URL:** `http://localhost:5050/search-simple`
 3. **Add header:** `Content-Type: application/json`
 4. **Body (raw JSON):**
 ```json
@@ -272,7 +272,7 @@ curl -X POST http://localhost:5000/documents/sync-embeddings \
 ### Workflow Configuration
 
 **Step 1: Add API Node**
-- **URL:** `http://your-server:5000/search-simple`
+- **URL:** `http://your-server:5050/search-simple`
 - **Method:** POST
 - **Headers:** `Content-Type: application/json`
 - **Body:**
@@ -337,7 +337,7 @@ docker-compose up --build
 docker-compose exec mysql-to-pgvector-embeddings ping postgres
 
 # Verify port mapping
-docker-compose port mysql-to-pgvector-embeddings 5000
+docker-compose port mysql-to-pgvector-embeddings 5050
 ```
 
 ### Performance Optimization
@@ -411,7 +411,7 @@ docker-compose up
 # Production with external databases
 docker run -d \
   --name mysql-to-pgvector-embeddings \
-  -p 5000:5000 \
+  -p 5050:5050 \
   --env-file .env.production \
   --restart unless-stopped \
   mysql-to-pgvector-embeddings
