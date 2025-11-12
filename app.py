@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 import requests
 import numpy as np
 import logging
+import asyncio
+from functools import lru_cache
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -83,6 +85,7 @@ class SearchResponse(BaseModel):
     total_results: int
 
 # Helper function to get embeddings and ensure correct dimensionality
+@lru_cache(maxsize=128)
 def get_embeddings(text: str, expected_dim: int = 4096) -> List[float]:
     host = os.getenv("EMBEDDING_MODEL_HOST")
     api_key = os.getenv("EMBEDDING_API_KEY")
@@ -115,8 +118,27 @@ def get_embeddings(text: str, expected_dim: int = 4096) -> List[float]:
         # Return zero vector of expected dimension on failure
         return [0.0] * expected_dim
 
-# Helper function to update embeddings in pgvector database
-def update_embeddings_in_pgv(pgv_conn, question_id: int, question: str, answer: str):
+# Helper function for vector search (synchronous)
+def perform_vector_search(pgv_conn, query_embedding, threshold, limit):
+    with pgv_conn.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT 
+                question, 
+                answer, 
+                link, 
+                date,
+                genie_uniqueid,
+                1 - (full_embedding <=> %s::vector) as similarity_score
+            FROM genie_documents
+            WHERE full_embedding IS NOT NULL
+                AND 1 - (full_embedding <=> %s::vector) > %s
+            ORDER BY similarity_score DESC
+            LIMIT %s
+            """,
+            (query_embedding, query_embedding, threshold, limit)
+        )
+        return cursor.fetchall()
     full_text = f"{question} {answer}".strip()
     full_embedding = get_embeddings(full_text)
     
@@ -192,6 +214,7 @@ async def search_knowledge_base(request: SearchRequest):
                     answer, 
                     link, 
                     date,
+                    genie_uniqueid,
                     1 - (full_embedding <=> %s::vector) as similarity_score
                 FROM genie_documents
                 WHERE full_embedding IS NOT NULL
@@ -201,6 +224,19 @@ async def search_knowledge_base(request: SearchRequest):
                 """,
                 (query_embedding, query_embedding, threshold, request.limit)
             )
+            
+            rows = cursor.fetchall()
+            
+            results = []
+            for row in rows:
+                results.append(SearchResult(
+                    question=row[0] or "",
+                    answer=row[1] or "",
+                    link=row[2] or "",
+                    date=str(row[3]) if row[3] else "",
+                    genie_uniqueid=row[4] or "",
+                    similarity_score=float(row[5])
+                ))
             
             rows = cursor.fetchall()
             
@@ -334,6 +370,24 @@ async def search_knowledge_base_simple(request: SearchRequest):
             status_code=500,
             detail=f"Search error: {str(e)}"
         )
+
+# Helper function to update embeddings in pgvector database
+def update_embeddings_in_pgv(pgv_conn, question_id: int, question: str, answer: str):
+    full_text = f"{question} {answer}".strip()
+    full_embedding = get_embeddings(full_text)
+    
+    logger.debug(f"Updating embeddings - question_id: {question_id}, full_embedding length: {len(full_embedding)}")
+    
+    with pgv_conn.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE genie_documents
+            SET full_embedding = %s::vector
+            WHERE id = %s
+            """,
+            (full_embedding, question_id)
+        )
+    pgv_conn.commit()
 
 @app.post('/documents/sync-embeddings')
 async def sync_embeddings():
