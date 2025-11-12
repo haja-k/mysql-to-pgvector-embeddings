@@ -1,143 +1,63 @@
-# 🚀 PVRA API: Vectorizing MySQL Data For LLM
+## mysql-to-vector (PVRA API)
 
-A FastAPI-based service that transforms your MySQL database into a powerful vector search engine for AI applications using pgvector and embeddings.
+A compact FastAPI service that syncs rows from a MySQL table into a PostgreSQL table with pgvector, generates embeddings via an external embedding service, and exposes vector search endpoints. This README replaces the previous merged/duplicated content and adds guidance for configuring external embedding providers.
 
-## ‼️Proposed Improvements For This Repository
-- Refine chunking method
-- Standardize threshold value
+Table of contents
+- Highlights
+- Quick start (local & Docker)
+- Configuration / .env
+- Embedding provider guide (OpenAI, Hugging Face, self-hosted)
+- Database schema
+- How it works
+- API examples
+- Next steps & extras
 
-## 📋 Table of Contents
-- [🎯 Overview](#-overview)
-- [🛠️ Installation](#️-installation)
-- [🐳 Docker Deployment](#-docker-deployment)
-- [⚙️ Configuration](#️-configuration)
-- [🔗 API Endpoints](#-api-endpoints)
-- [💡 Usage Examples](#-usage-examples)
-- [🔌 Dify Integration](#-dify-integration)
-- [🔧 Troubleshooting](#-troubleshooting)
+Highlights
+- Endpoints in `app.py`:
+  - `GET /healthcheck` — status
+  - `GET /documents` — read documents from MySQL
+  - `POST /documents/sync-embeddings` — migrate new rows and store embeddings in pgvector
+  - `POST /search` — structured similarity search results
+  - `POST /search-simple` — Dify-friendly text + sources
+- Async MySQL reads (`aiomysql`), PostgreSQL access (`psycopg2`).
+- Calls an external embedding HTTP API. The code pads vectors to 4096 when necessary.
+- Uses `migration_tracker` to avoid reprocessing rows.
+- Docker-ready (Dockerfile + docker-compose provided).
 
-## 🎯 Overview
+Quick start (local)
+1. Add a `.env` file (see `.env.example`).
+2. Install dependencies:
 
-### Problem Statement
-Your client's MySQL database contains dynamic content that needs to power a chatbot, but traditional knowledge bases are static and don't sync with live data updates.
-
-### Solution Architecture
-```
-MySQL Database → PostgreSQL + pgvector → Dify Workflow → AI Chatbot
-```
-
-### Key Features
-- 🔄 **Real-time sync** between MySQL and PostgreSQL
-- 🔍 **Vector similarity search** using embeddings
-- 🤖 **Dify integration** through API nodes
-- 📊 **Custom embedding model** (Qwen/Qwen3-Embedding-8B)
-- 🐳 **Docker support** for easy deployment
-
-## 🛠️ Installation
-
-### Prerequisites
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| Python | 3.8+ | Runtime environment |
-| MySQL | Any | Source database |
-| PostgreSQL | Latest | Vector database |
-| pgvector | Latest | Vector extension |
-| Embedding API | Compatible | Text embeddings |
-| Docker | Latest | Containerization (optional) |
-
-### Quick Start (Traditional)
-1. **Clone and setup:**
 ```bash
-git clone <your-repo>
-cd pvra-api
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-2. **Install dependencies:**
+3. Run the app (development):
+
 ```bash
-pip install fastapi uvicorn aiomysql psycopg2-binary python-dotenv pydantic requests numpy
+uvicorn app:app --reload --host 0.0.0.0 --port 5000
 ```
 
-3. **Run the API:**
+Quick start (Docker)
+1. Create `.env` and set DB + embedding values.
+2. Build & run with compose:
+
 ```bash
-run.bat
-# or
-python main.py
+docker-compose up --build -d
 ```
 
-## 🐳 Docker Deployment
-
-### Option 1: Docker Compose (Recommended)
-**Complete stack with PostgreSQL + pgvector:**
-```bash
-# Clone the repository
-git clone <your-repo>
-cd pvra-api
-
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your settings
-
-# Start the entire stack
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f pvra-api
-```
-
-### Option 2: Docker Only
-**Use existing databases:**
-```bash
-# Build the image
-docker build -t pvra-api .
-
-# Run the container
-docker run -d \
-  --name pvra-api \
-  -p 5000:5000 \
-  --env-file .env \
-  pvra-api
-```
-
-### Docker Services Overview
-| Service | Port | Description |
-|---------|------|-------------|
-| `pvra-api` | 5000 | Main FastAPI application |
-| `postgres` | 5432 | PostgreSQL with pgvector |
-| `adminer` | 8080 | Database management UI |
-
-### Docker Commands
-```bash
-# View running containers
-docker-compose ps
-
-# Stop services
-docker-compose down
-
-# Rebuild after code changes
-docker-compose up --build
-
-# View logs
-docker-compose logs -f [service-name]
-
-# Execute commands in container
-docker-compose exec pvra-api bash
-```
-
-## ⚙️ Configuration
-
-### Environment Variables
-Create a `.env` file with the following configuration:
+Configuration / .env
+Create a `.env` (or copy `.env.example`) and set the following:
 
 ```env
-# 🗄️ MySQL Configuration
+# MySQL
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=your_mysql_user
 DB_PASSWORD=your_mysql_password
 DB_NAME=db_ses
 
-# 🐘 PostgreSQL Configuration
+# PostgreSQL
 PG_HOST=localhost
 PG_PORT=5432
 PG_USER=your_pg_user
@@ -145,122 +65,101 @@ PG_PASSWORD=your_pg_password
 PGVECTOR_DB_NAME=your_pgvector_db
 PG_DB_NAME=your_pg_db
 
-# 🧠 Embedding Service Configuration
-EMBEDDING_MODEL_HOST=https://api.openai.com/v1
+# Embedding service (HTTP API)
+EMBEDDING_MODEL_HOST=https://your-embed-host
 EMBEDDING_API_KEY=your_api_key
-EMBEDDING_MODEL_NAME=text-embedding-3-large
+EMBEDDING_MODEL_NAME=your_model_name
 
-# ⚙️ Application Configuration
+# Optional: change expected vector dimension if you adapt the code
+# (app.py pads to 4096 by default)
+EMBEDDING_EXPECTED_DIM=4096
+
 APP_DEBUG=false
 ```
 
-### Docker Environment Variables
-For Docker deployment, update these values:
+Embedding provider guide
+------------------------
+This app delegates embedding generation to an HTTP embedding API. The code expects the provider to expose an endpoint that returns an embedding array (the code expects the first element at `response.json()['data'][0]['embedding']` but you can adapt it).
+
+Key notes:
+- The app pads shorter embeddings to the configured expected dimension (default 4096). If your provider returns different dimensions, either update `EMBEDDING_EXPECTED_DIM` or modify `get_embeddings()` in `app.py`.
+- For production, prefer batching multiple inputs per request if your provider supports it — it's faster and cheaper.
+
+Examples
+
+1) OpenAI-compatible API (or OpenAI itself)
+
+Set env vars:
+
 ```env
-# When using docker-compose
-PG_HOST=postgres
-PG_PORT=5432
-
-# External MySQL (update as needed)
-DB_HOST=your_mysql_host
+EMBEDDING_MODEL_HOST=https://api.openai.com/v1
+EMBEDDING_API_KEY=sk-...
+EMBEDDING_MODEL_NAME=text-embedding-3-large
 ```
 
-### Database Schema
+Typical request (the code sends JSON {"model":..., "input": text} to `${EMBEDDING_MODEL_HOST}/embeddings`). The response shape expected in `app.py` is the OpenAI-style `{"data":[{"embedding": [...]}, ...]}`.
 
-> **⚠️ Important Note:** The database schema shown below is specific to this example implementation. You should modify the table names, column names, and data types to match your existing database structure. The code can be easily adapted to work with any MySQL source table and PostgreSQL vector table by updating the SQL queries and column mappings in the FastAPI application.
+2) Hugging Face Inference API (example)
 
-**MySQL Source Table (`tbl_genie_genie`) - Example Schema:**
-```sql
-CREATE TABLE tbl_genie_genie (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    genie_question TEXT,
-    genie_answer TEXT,
-    genie_questiondate DATE,
-    genie_sourcelink TEXT
-);
+Set env vars:
+
+```env
+EMBEDDING_MODEL_HOST=https://api-inference.huggingface.co/models/<your-model>
+EMBEDDING_API_KEY=hf_...
+EMBEDDING_MODEL_NAME=<model-name>  # optional here; the model is in the URL
 ```
 
-**PostgreSQL Vector Table (`genie_documents`) - Example Schema:**
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
+Hugging Face inference returns embeddings in different JSON shapes depending on the model and client. If you use HF, modify `get_embeddings()` to parse the returned JSON accordingly (e.g., HF may return a flat array or a base64 blob depending on the model).
 
-CREATE TABLE genie_documents (
-    id SERIAL PRIMARY KEY,
-    question TEXT UNIQUE,
-    answer TEXT,
-    link TEXT,
-    date DATE,
-    question_embedding vector(4096),
-    answer_embedding vector(4096)
-);
+3) Self-hosted / custom embedding server
 
-CREATE TABLE migration_tracker (
-    id SERIAL PRIMARY KEY,
-    id_migrated INTEGER
-);
+If you run a local embedding server (Qwen, Llama 2, etc.), point `EMBEDDING_MODEL_HOST` to your server (e.g., `http://localhost:8000`) and ensure the endpoint `/embeddings` accepts the same JSON payload or update `get_embeddings()` to match your server's contract.
+
+Troubleshooting tips for providers
+- If embeddings are missing or wrong-length, check logs — the app pads but you may prefer to raise an error.
+- Monitor rate limits and implement retries/backoff if your provider throttles.
+- For large syncs, batch inputs to reduce HTTP requests.
+
+Database schema (summary)
+- Source MySQL table (example `tbl_genie_genie`) with: id, genie_question, genie_answer, genie_questiondate, genie_sourcelink.
+- PostgreSQL `genie_documents`: id, question, answer, link, date, question_embedding VECTOR(4096), answer_embedding VECTOR(4096).
+- `migration_tracker` to store last migrated id.
+
+How it works (brief)
+- `documents/sync-embeddings` reads new rows from MySQL (id > last migrated) and inserts into `genie_documents` (skipping duplicate questions).
+- For each row the service calls the embedding API for question and answer, pads the vectors if needed, and updates `question_embedding` and `answer_embedding` in Postgres.
+- Search endpoints compute similarity using pgvector (`1 - (question_embedding <=> %s::vector)`) and return ranked results.
+
+API examples
+- Health check:
+
+```bash
+curl http://localhost:5000/healthcheck
 ```
 
-### 🔧 Adapting to Your Database Schema
+- Simple search:
 
-To adapt this API to your specific database schema, you'll need to modify the following in your FastAPI code:
-
-**1. Update Table and Column Names:**
-```python
-# In get_documents() function - modify this query:
-await cursor.execute('''
-    SELECT 
-        your_question_column,    # Replace with your question column
-        your_answer_column,      # Replace with your answer column  
-        your_date_column,        # Replace with your date column
-        your_link_column         # Replace with your link column
-    FROM your_mysql_table        # Replace with your MySQL table name
-''')
-
-# In sync_embeddings() function - modify this query:
-await mysql_cursor.execute("""
-    SELECT id, your_question_column, your_answer_column, your_date_column, your_link_column
-    FROM your_mysql_table
-    WHERE id > %s
-""", (last_migrated_id,))
+```bash
+curl -X POST http://localhost:5000/search-simple \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"example query","limit":5,"similarity_threshold":0.7}'
 ```
 
-**2. Update PostgreSQL Table Structure:**
-```sql
--- Modify the genie_documents table to match your needs:
-CREATE TABLE your_vector_table (
-    id SERIAL PRIMARY KEY,
-    your_question_field TEXT UNIQUE,
-    your_answer_field TEXT,
-    your_link_field TEXT,
-    your_date_field DATE,
-    question_embedding vector(4096),  -- Keep this for embeddings
-    answer_embedding vector(4096)     -- Keep this for embeddings
-);
+- Sync embeddings:
+
+```bash
+curl -X POST http://localhost:5000/documents/sync-embeddings
 ```
 
-**3. Update Search Queries:**
-```python
-# In both search endpoints, modify the SELECT queries:
-cursor.execute(
-    """
-    SELECT 
-        your_question_field,     # Your question field name
-        your_answer_field,       # Your answer field name
-        your_link_field,         # Your link field name
-        your_date_field,         # Your date field name
-        1 - (question_embedding <=> %s::vector) as similarity_score
-    FROM your_vector_table       # Your PostgreSQL table name
-    WHERE question_embedding IS NOT NULL
-        AND 1 - (question_embedding <=> %s::vector) > %s
-    ORDER BY similarity_score DESC
-    LIMIT %s
-    """,
-    (query_embedding, query_embedding, request.similarity_threshold, request.limit)
-)
-```
+Next steps & extras
+- Add batching for embedding calls to improve throughput and reduce latency/cost.
+- Add authentication and rate limiting for production.
+- Add unit/integration tests and simple metrics (last synced id, embedding failures).
+- Optional: I can add `.env.example`, a CONTRIBUTING section, or a small metrics endpoint.
 
-**4. Common Adaptations:**
-- **Different data types**: Adjust `TEXT` to `VARCHAR(n)`, `LONGTEXT`, etc.
+---
+
+If you'd like, tell me which provider you plan to use and I can add a ready-made `get_embeddings()` snippet for that provider (OpenAI, Hugging Face, or a self-hosted server), plus a `.env.example` file.
 - **Additional fields**: Add more columns like `category`, `tags`, `author`, etc.
 - **Different ID strategy**: Use UUID instead of auto-increment
 - **Multiple source tables**: Join multiple tables in your queries
