@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Load configurable values
+DEFAULT_SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.7"))
+
 # Application Lifespan Management
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -65,7 +68,7 @@ class DocumentResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     limit: Optional[int] = 5
-    similarity_threshold: Optional[float] = 0.7
+    similarity_threshold: Optional[float] = None
 
 class SearchResult(BaseModel):
     question: str
@@ -172,6 +175,7 @@ async def search_knowledge_base(request: SearchRequest):
     This endpoint is designed to be used with Dify workflow API nodes.
     """
     try:
+        threshold = request.similarity_threshold if request.similarity_threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
         # Get embedding for the query
         query_embedding = get_embeddings(request.query)
         
@@ -194,7 +198,7 @@ async def search_knowledge_base(request: SearchRequest):
                 ORDER BY similarity_score DESC
                 LIMIT %s
                 """,
-                (query_embedding, query_embedding, request.similarity_threshold, request.limit)
+                (query_embedding, query_embedding, threshold, request.limit)
             )
             
             rows = cursor.fetchall()
@@ -240,6 +244,7 @@ async def search_knowledge_base_simple(request: SearchRequest):
     Returns concatenated results as a single text block.
     """
     try:
+        threshold = request.similarity_threshold if request.similarity_threshold is not None else DEFAULT_SIMILARITY_THRESHOLD
         # Get embedding for the query
         query_embedding = get_embeddings(request.query)
         
@@ -261,7 +266,7 @@ async def search_knowledge_base_simple(request: SearchRequest):
                 ORDER BY similarity_score DESC
                 LIMIT %s
                 """,
-                (query_embedding, query_embedding, request.similarity_threshold, request.limit)
+                (query_embedding, query_embedding, threshold, request.limit)
             )
             
             rows = cursor.fetchall()

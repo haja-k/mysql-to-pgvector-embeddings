@@ -73,6 +73,9 @@ EMBEDDING_MODEL_NAME=
 # App Configuration
 APP_DEBUG=
 APP_SECRET_KEY=
+
+# Similarity threshold for search (default 0.7)
+SIMILARITY_THRESHOLD=
 ```
 
 Embedding provider guide
@@ -181,7 +184,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
 {
   "query": "government policies",
   "limit": 5,
-  "similarity_threshold": 0.7
+  "similarity_threshold": 0.7  // optional, defaults to env var SIMILARITY_THRESHOLD or 0.7
 }
 ```
 
@@ -207,7 +210,7 @@ If you'd like, tell me which provider you plan to use and I can add a ready-made
 {
   "query": "healthcare system",
   "limit": 3,
-  "similarity_threshold": 0.8
+  "similarity_threshold": 0.8  // optional, defaults to env var SIMILARITY_THRESHOLD or 0.7
 }
 ```
 
@@ -243,7 +246,7 @@ curl -X POST http://localhost:5050/search-simple \
   -d '{
     "query": "What is the capital of Malaysia?",
     "limit": 5,
-    "similarity_threshold": 0.7
+    "similarity_threshold": 0.7  // optional, defaults to env var SIMILARITY_THRESHOLD or 0.7
   }'
 ```
 
