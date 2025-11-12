@@ -1,6 +1,6 @@
 ## mysql-to-pgvector-embeddings (PVRA API)
 
-A compact FastAPI service that syncs rows from a MySQL table into a PostgreSQL table with pgvector, generates embeddings via an external embedding service, and exposes vector search endpoints. This README replaces the previous merged/duplicated content and adds guidance for configuring external embedding providers.
+A compact FastAPI service that syncs rows from a MySQL table into a PostgreSQL table with pgvector, generates embeddings via an external embedding service, and exposes vector search endpoints.
 
 Table of contents
 - Highlights
@@ -47,34 +47,32 @@ docker-compose up --build -d
 ```
 
 Configuration / .env
-Create a `.env` (or copy `.env.example`) and set the following:
+Create a `.env` file (or copy `.env.example`) and set the following:
 
 ```env
-# MySQL
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=your_mysql_user
-DB_PASSWORD=your_mysql_password
-DB_NAME=db_ses
+# Database Configuration
+DB_HOST=
+DB_PORT=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
 
-# PostgreSQL
-PG_HOST=localhost
-PG_PORT=5432
-PG_USER=your_pg_user
-PG_PASSWORD=your_pg_password
-PGVECTOR_DB_NAME=your_pgvector_db
-PG_DB_NAME=your_pg_db
+#PostgreSQL Configuration
+PG_HOST=
+PG_PORT=
+PG_USER=
+PG_PASSWORD=
+PG_DB_NAME=
+PGVECTOR_DB_NAME= 
 
-# Embedding service (HTTP API)
-EMBEDDING_MODEL_HOST=https://your-embed-host
-EMBEDDING_API_KEY=your_api_key
-EMBEDDING_MODEL_NAME=your_model_name
+# Embedding Model Configuration
+EMBEDDING_MODEL_HOST=
+EMBEDDING_API_KEY=
+EMBEDDING_MODEL_NAME=
 
-# Optional: change expected vector dimension if you adapt the code
-# (app.py pads to 4096 by default)
-EMBEDDING_EXPECTED_DIM=4096
-
-APP_DEBUG=false
+# App Configuration
+APP_DEBUG=
+APP_SECRET_KEY=
 ```
 
 Embedding provider guide
@@ -155,7 +153,7 @@ Next steps & extras
 - Add batching for embedding calls to improve throughput and reduce latency/cost.
 - Add authentication and rate limiting for production.
 - Add unit/integration tests and simple metrics (last synced id, embedding failures).
-- Optional: I can add `.env.example`, a CONTRIBUTING section, or a small metrics endpoint.
+- Optional: I can add a CONTRIBUTING section, or a small metrics endpoint.
 
 ---
 
@@ -394,8 +392,8 @@ docker-compose port mysql-to-pgvector-embeddings 5000
 ### Current Status
 - ✅ Core functionality complete
 - ✅ Docker deployment ready
-- 🔄 Dify integration in progress
-- 📊 Performance optimization ongoing
+- ✅ Dify integration ready (via `/search-simple` endpoint)
+- � Performance optimization ongoing
 
 ## 🚀 Deployment Options
 
